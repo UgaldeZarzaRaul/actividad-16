@@ -1,0 +1,12 @@
+<?php
+
+// Copiar este canal dentro del arreglo 'channels' de config/logging.php
+
+'monitoring' => [
+    'driver' => 'daily',
+    'path' => storage_path('logs/monitoreo.log'),
+    'level' => env('LOG_LEVEL', 'debug'),
+    'days' => 14,
+    'formatter' => Monolog\Formatter\JsonFormatter::class,
+    'replace_placeholders' => true,
+],

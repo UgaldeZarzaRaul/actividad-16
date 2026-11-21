@@ -1,0 +1,28 @@
+# Escenario 5: solicitudes periódicas contra el entorno desplegado.
+# Requiere el secreto APP_URL (Settings > Secrets and variables > Actions).
+name: Verificar disponibilidad
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"     # cada 15 minutos
+  workflow_dispatch:
+
+jobs:
+  disponibilidad:
+    runs-on: ubuntu-latest
+    if: ${{ vars.MONITOREO_ACTIVO != 'false' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verificar endpoints
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          INTENTOS: "3"
+          ESPERA: "10"
+        run: |
+          if [ -z "$APP_URL" ]; then
+            echo "::warning::No se configuró el secreto APP_URL; se omite la verificación."
+            exit 0
+          fi
+          ./scripts/verificar-despliegue.sh | tee resultado.txt
+          { echo "### Verificación de disponibilidad"; echo '```'; cat resultado.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

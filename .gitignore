@@ -1,0 +1,5 @@
+jmeter/resultados/*
+!jmeter/resultados/.gitkeep
+*.jtl
+disponibilidad-*.csv
+.DS_Store

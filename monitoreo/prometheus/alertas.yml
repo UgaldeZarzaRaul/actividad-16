@@ -1,0 +1,45 @@
+# Reglas alineadas con los parámetros de evaluación de la Actividad 16
+groups:
+  - name: laravel-parametros
+    rules:
+      - alert: AplicacionCaida
+        expr: probe_success == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "La URL {{ $labels.instance }} no responde"
+
+      - alert: DisponibilidadBajoObjetivo
+        expr: avg_over_time(probe_success[15m]) < 0.95
+        labels: {severity: warning}
+        annotations:
+          summary: "Disponibilidad de {{ $labels.instance }} menor al 95 % en 15 min"
+
+      - alert: SolicitudesLentas
+        expr: increase(laravel_http_slow_requests_total[5m]) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: "Hay solicitudes que superan 2 segundos"
+
+      - alert: TasaDeErrores5xx
+        expr: |
+          sum(rate(laravel_http_requests_total{status="5xx"}[5m]))
+            / clamp_min(sum(rate(laravel_http_requests_total[5m])), 0.001) > 0.01
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "Más del 1 % de las respuestas son errores 5xx"
+
+      - alert: MySQLCaido
+        expr: mysql_up == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "MySQL no está disponible"
+
+      - alert: CargaDeCPUAlta
+        expr: laravel_system_load1 > 4
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "Carga del sistema elevada ({{ $value }})"

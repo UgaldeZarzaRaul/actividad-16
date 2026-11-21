@@ -1,0 +1,36 @@
+# Valida en cada push que las configuraciones de monitoreo sean correctas
+name: Validar configuración de monitoreo
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validar configuración y reglas de Prometheus
+        run: |
+          docker run --rm -v "$PWD/monitoreo/prometheus:/cfg" --entrypoint promtool \
+            prom/prometheus:v2.53.0 check rules /cfg/alertas.yml
+          sed 's#/etc/prometheus/alertas.yml#/cfg/alertas.yml#' monitoreo/prometheus/prometheus.yml > /tmp/prometheus.yml
+          docker run --rm -v "$PWD/monitoreo/prometheus:/cfg" -v /tmp/prometheus.yml:/tmp/prometheus.yml \
+            --entrypoint promtool prom/prometheus:v2.53.0 check config /tmp/prometheus.yml
+
+      - name: Validar docker-compose
+        run: docker compose -f monitoreo/docker-compose.yml config --quiet
+
+      - name: Validar panel de Grafana (JSON)
+        run: python3 -m json.tool monitoreo/grafana/dashboards/laravel-monitoreo.json > /dev/null
+
+      - name: Validar plan de JMeter (XML)
+        run: python3 -c "import xml.dom.minidom as m; m.parse('jmeter/plan-carga.jmx')"
+
+      - name: Revisar sintaxis de PHP y scripts
+        run: |
+          find laravel -name "*.php" -print0 | xargs -0 -n1 php -l
+          bash -n scripts/verificar-despliegue.sh
+          python3 -m py_compile scripts/resumen-jmeter.py scripts/comparar.py

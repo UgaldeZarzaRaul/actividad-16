@@ -1,0 +1,98 @@
+# Pipeline del proyecto Laravel con verificaciones de monitoreo integradas.
+# Copiar a .github/workflows/ del repositorio Laravel, junto con las carpetas
+# scripts/ y jmeter/ de este repositorio.
+name: CI/CD con monitoreo
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pruebas-y-rendimiento:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: laravel
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -proot" --health-interval=10s
+          --health-timeout=5s --health-retries=5
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: laravel
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      MONITOREO_MEJORAS: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mbstring, pdo_mysql
+
+      - name: Instalar dependencias
+        run: |
+          composer install --no-interaction --prefer-dist
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Migraciones y datos de prueba
+        run: |
+          php artisan migrate --force
+          php artisan migrate --path=database/migrations/mejora --force
+          php artisan db:seed --class=ProductoSeeder --force
+
+      - name: Pruebas automatizadas
+        run: php artisan test
+
+      - name: Iniciar la aplicación
+        run: |
+          php artisan serve --host=127.0.0.1 --port=8000 > serve.log 2>&1 &
+          sleep 3
+
+      - name: Verificación de disponibilidad (smoke test)
+        env:
+          APP_URL: http://127.0.0.1:8000
+        run: ./scripts/verificar-despliegue.sh
+
+      - name: Prueba de carga corta con JMeter
+        run: |
+          wget -q https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+          tar -xzf apache-jmeter-5.6.3.tgz
+          ./apache-jmeter-5.6.3/bin/jmeter -n -t jmeter/plan-carga.jmx \
+            -Jhost=127.0.0.1 -Jport=8000 -Jusuarios=10 -Jrampa=5 -Jciclos=5 \
+            -l resultados-ci.jtl
+          python3 scripts/resumen-jmeter.py resultados-ci.jtl | tee resumen.txt
+          { echo "### Rendimiento en CI"; echo '```'; cat resumen.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: resultados-monitoreo
+          path: |
+            resultados-ci.jtl
+            resumen.txt
+            storage/logs/
+
+  desplegar:
+    needs: pruebas-y-rendimiento
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      APP_URL: ${{ secrets.APP_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Sustituir por el paso de despliegue utilizado en las actividades anteriores
+      - name: Desplegar en el entorno de liberación
+        run: echo "Aquí va el comando de despliegue del proyecto"
+
+      - name: Verificación posterior al despliegue
+        if: env.APP_URL != ''
+        run: ./scripts/verificar-despliegue.sh

@@ -1,0 +1,46 @@
+digraph G {
+  graph [rankdir=TB, fontname="DejaVu Sans", fontsize=13, bgcolor="white", pad=0.3, nodesep=0.35, ranksep=0.55, newrank=true];
+  node  [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=11, color="#7A1F3D", fillcolor="#FBF3F6", penwidth=1.4, margin="0.18,0.1"];
+  edge  [fontname="DejaVu Sans", fontsize=9, color="#555555", arrowsize=0.7];
+
+  usuarios [label="Usuarios\n(navegador)", shape=ellipse, fillcolor="#EEF2F7", color="#3B5B7A"];
+  jmeter   [label="Apache JMeter\nprueba de carga", fillcolor="#EEF2F7", color="#3B5B7A"];
+  gha      [label="GitHub Actions\nCI/CD + verificación\nde disponibilidad", fillcolor="#EEF2F7", color="#3B5B7A"];
+
+  subgraph cluster_mac {
+    label="Entorno de la aplicación (macOS / servidor de liberación)"; style="rounded,dashed"; color="#999999"; fontcolor="#444444";
+    app [label="Aplicación Laravel/PHP :8000\n─────────────\nMiddleware RequestMonitoring\n/api/health · /metrics\nUsuarios · Productos · Registros", fillcolor="#7A1F3D", fontcolor="white", color="#5A1530"];
+    mysql [label="MySQL :3306", shape=cylinder, fillcolor="#FFF7E0", color="#B8860B"];
+    logs [label="storage/logs\nlaravel.log\nmonitoreo.log (JSON)", shape=note, fillcolor="#FFFFFF", color="#777777"];
+    telescope [label="Laravel Telescope\n/telescope\npeticiones, queries,\nexcepciones", fillcolor="#F3EEFF", color="#6D4AB0"];
+  }
+
+  subgraph cluster_docker {
+    label="Stack de monitoreo (Docker Compose)"; style="rounded,filled"; fillcolor="#F4F8FB"; color="#3B5B7A"; fontcolor="#1F3A55";
+    kuma [label="Uptime Kuma :3001\ndisponibilidad\n(cada 30 s, timeout 10 s)"];
+    blackbox [label="Blackbox Exporter :9115\nsondas HTTP"];
+    mexp [label="mysqld-exporter :9104"];
+    prom [label="Prometheus :9090\nrecolección cada 15 s\nreglas de alerta", fillcolor="#FDEBDD", color="#C45A1A"];
+    grafana [label="Grafana :3000\npanel de rendimiento", fillcolor="#FFF1E0", color="#D9822B"];
+  }
+
+  equipo [label="Equipo de desarrollo\nanálisis y mejoras", shape=ellipse, fillcolor="#EAF6EC", color="#2E7D32"];
+
+  usuarios -> app [label="HTTP"];
+  jmeter -> app [label="carga"];
+  gha -> app [label="smoke test\n/api/health"];
+  app -> mysql [label="consultas"];
+  app -> logs [label="escribe"];
+  app -> telescope [style=dashed, arrowhead=none];
+  kuma -> app [label="GET /api/health"];
+  blackbox -> app [label="sondas"];
+  mexp -> mysql [label="estado"];
+  prom -> app [label="scrape /metrics"];
+  prom -> blackbox; prom -> mexp;
+  grafana -> prom [label="PromQL"];
+  grafana -> equipo [label="paneles", dir=back];
+  logs -> equipo [label="consulta"];
+  telescope -> equipo [label="trazas"];
+  kuma -> equipo [label="alertas", style=dashed];
+  { rank=same; usuarios; jmeter; gha; }
+}
